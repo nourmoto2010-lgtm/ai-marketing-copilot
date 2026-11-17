@@ -25,7 +25,9 @@ import {
   RoleSlug,
   SystemSettings,
   Task,
+  TaskComment,
   TaskDeliverable,
+  TaskPriority,
   TaskReview,
   TaskStatus,
   User,
@@ -52,6 +54,12 @@ interface AppContextType {
   users: User[];
   currentUser: User;
   currentRole: Role;
+  isAuthenticated: boolean;
+  loginWithCredentials: (params: {
+    email: string;
+    password?: string;
+  }) => Promise<{ ok: boolean; error?: string }>;
+  logoutUser: () => Promise<void>;
   setCurrentUserById: (userId: string) => void;
   clients: Client[];
   brandKits: BrandKit[];
@@ -83,6 +91,24 @@ interface AppContextType {
     is_active: boolean;
   }) => Promise<void>;
   toggleTeamMemberStatus: (userId: string) => Promise<void>;
+  deleteTeamMember: (userId: string) => Promise<void>;
+  updateClientAndBrandKit: (params: {
+    clientId: string;
+    name?: string;
+    name_en?: string;
+    sector_label_ar?: string;
+    monthly_package?: Partial<Client["monthly_package"]>;
+    brandKit?: Partial<BrandKit>;
+  }) => Promise<void>;
+  updateTaskDetails: (
+    taskId: string,
+    updates: Partial<Pick<Task, "title" | "brief" | "priority" | "deadline" | "scheduled_publish_date" | "platform">>
+  ) => Promise<void>;
+  addTaskComment: (params: {
+    taskId: string;
+    message: string;
+    isQuestion?: boolean;
+  }) => Promise<void>;
   addNewClientWithBrandKit: (params: {
     name: string;
     name_en: string;
@@ -161,6 +187,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [roles] = useState<Role[]>(SEED_ROLES);
   const [users, setUsers] = useState<User[]>(SEED_USERS);
   const [currentUserId, setCurrentUserId] = useState<string>("user-ceo");
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(true);
   const [clients, setClients] = useState<Client[]>(SEED_CLIENTS);
   const [brandKits, setBrandKits] = useState<BrandKit[]>(SEED_BRAND_KITS);
   const [campaigns, setCampaigns] = useState<Campaign[]>(SEED_CAMPAIGNS);
@@ -328,6 +355,66 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const setCurrentUserById = (userId: string) => {
     setCurrentUserId(userId);
+    setIsAuthenticated(true);
+  };
+
+  const loginWithCredentials: AppContextType["loginWithCredentials"] = async ({
+    email,
+    password,
+  }) => {
+    const cleanEmail = email.trim().toLowerCase();
+    const matchedMember = users.find(
+      (u) => u.email.toLowerCase() === cleanEmail
+    );
+
+    if (isSupabaseConfigured && supabase && password) {
+      try {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: cleanEmail,
+          password,
+        });
+        if (!error && data?.user) {
+          if (matchedMember) {
+            setCurrentUserId(matchedMember.id);
+          }
+          setIsAuthenticated(true);
+          return { ok: true };
+        }
+      } catch {
+        // Fallback to team roster verification
+      }
+    }
+
+    if (!matchedMember) {
+      return {
+        ok: false,
+        error:
+          "البريد الإلكتروني غير مسجل في قائمة فريق الوكالة. يمكنك استخدام أحد حسابات الفريق أو إضافته من الإعدادات.",
+      };
+    }
+
+    if (!matchedMember.is_active) {
+      return {
+        ok: false,
+        error:
+          "هذا الحساب موقوف حالياً من قِبل إدارة الوكالة (CEO). يرجى مراجعة المدير العام.",
+      };
+    }
+
+    setCurrentUserId(matchedMember.id);
+    setIsAuthenticated(true);
+    return { ok: true };
+  };
+
+  const logoutUser = async () => {
+    if (isSupabaseConfigured && supabase) {
+      try {
+        await supabase.auth.signOut();
+      } catch {
+        // ignore
+      }
+    }
+    setIsAuthenticated(false);
   };
 
   /**
@@ -541,19 +628,159 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     deliverable: Partial<TaskDeliverable>
   ) => {
     setTasks((prev) =>
+      prev.map((t) => {
+        if (t.id !== taskId) return t;
+        const nextTask = {
+          ...t,
+          deliverable_content: {
+            ...t.deliverable_content,
+            ...deliverable,
+          },
+        };
+        if (isSupabaseConfigured && supabase) {
+          supabase
+            .from("tasks")
+            .upsert(nextTask)
+            .then(() => {});
+        }
+        return nextTask;
+      })
+    );
+  };
+
+  const updateTaskDetails: AppContextType["updateTaskDetails"] = async (
+    taskId,
+    updates
+  ) => {
+    setTasks((prev) =>
+      prev.map((t) => {
+        if (t.id !== taskId) return t;
+        const updatedTask = { ...t, ...updates };
+        if (isSupabaseConfigured && supabase) {
+          supabase
+            .from("tasks")
+            .upsert(updatedTask)
+            .then(() => {});
+        }
+        return updatedTask;
+      })
+    );
+  };
+
+  const addTaskComment: AppContextType["addTaskComment"] = async ({
+    taskId,
+    message,
+    isQuestion,
+  }) => {
+    if (!message.trim()) return;
+    const newComment: TaskComment = {
+      id: `cmt-${Date.now()}`,
+      author_id: currentUser.id,
+      author_name: currentUser.full_name,
+      author_role: currentUser.job_title_ar,
+      message: message.trim(),
+      is_question: Boolean(isQuestion),
+      created_at: new Date().toISOString(),
+    };
+
+    setTasks((prev) =>
+      prev.map((t) => {
+        if (t.id !== taskId) return t;
+        const prevComments = t.deliverable_content.comments || [];
+        const updatedTask: Task = {
+          ...t,
+          deliverable_content: {
+            ...t.deliverable_content,
+            comments: [...prevComments, newComment],
+          },
+        };
+        if (isSupabaseConfigured && supabase) {
+          supabase
+            .from("tasks")
+            .upsert(updatedTask)
+            .then(() => {});
+        }
+        return updatedTask;
+      })
+    );
+  };
+
+  const deleteTeamMember: AppContextType["deleteTeamMember"] = async (
+    userId
+  ) => {
+    if (users.length <= 1) return;
+    const fallbackUser =
+      users.find((u) => u.id !== userId) || SEED_USERS[0];
+
+    setTasks((prev) =>
       prev.map((t) =>
-        t.id === taskId
+        t.assigned_to === userId
           ? {
               ...t,
-              deliverable_content: {
-                ...t.deliverable_content,
-                ...deliverable,
-              },
+              assigned_to: fallbackUser.id,
+              role_slug: fallbackUser.role_slug,
             }
           : t
       )
     );
+    setPerformanceScores((prev) => prev.filter((p) => p.user_id !== userId));
+    setUsers((prev) => prev.filter((u) => u.id !== userId));
+
+    if (currentUserId === userId) {
+      setCurrentUserId(fallbackUser.id);
+    }
+
+    if (isSupabaseConfigured && supabase) {
+      try {
+        await supabase
+          .from("performance_scores")
+          .delete()
+          .eq("user_id", userId);
+        await supabase.from("users").delete().eq("id", userId);
+      } catch (e) {
+        console.warn("Supabase delete user notice:", e);
+      }
+    }
   };
+
+  const updateClientAndBrandKit: AppContextType["updateClientAndBrandKit"] =
+    async ({
+      clientId,
+      name,
+      name_en,
+      sector_label_ar,
+      monthly_package,
+      brandKit: bkUpdates,
+    }) => {
+      setClients((prev) =>
+        prev.map((c) => {
+          if (c.id !== clientId) return c;
+          const updatedClient: Client = {
+            ...c,
+            name: name !== undefined ? name : c.name,
+            name_en: name_en !== undefined ? name_en : c.name_en,
+            sector_label_ar:
+              sector_label_ar !== undefined
+                ? sector_label_ar
+                : c.sector_label_ar,
+            monthly_package: monthly_package
+              ? { ...c.monthly_package, ...monthly_package }
+              : c.monthly_package,
+          };
+          if (isSupabaseConfigured && supabase) {
+            supabase
+              .from("clients")
+              .upsert(updatedClient)
+              .then(() => {});
+          }
+          return updatedClient;
+        })
+      );
+
+      if (bkUpdates) {
+        updateBrandKit(clientId, bkUpdates);
+      }
+    };
 
   /**
    * 2. تسليم المهمة للمراجعة (التسليم في الموعد أو التسليم المتأخر)
@@ -1116,6 +1343,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         users,
         currentUser,
         currentRole,
+        isAuthenticated,
+        loginWithCredentials,
+        logoutUser,
         setCurrentUserById,
         clients,
         brandKits,
@@ -1135,6 +1365,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         saveSystemSettings,
         upsertTeamMember,
         toggleTeamMemberStatus,
+        deleteTeamMember,
+        updateClientAndBrandKit,
+        updateTaskDetails,
+        addTaskComment,
         addNewClientWithBrandKit,
         updateTaskStatus,
         reassignTask,
