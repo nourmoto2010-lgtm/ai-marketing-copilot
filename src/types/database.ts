@@ -184,6 +184,16 @@ export interface Campaign {
   ad_metrics: AdMetrics;
 }
 
+export interface TaskComment {
+  id: string;
+  author_id: string;
+  author_name: string;
+  author_role: string;
+  message: string;
+  is_question?: boolean;
+  created_at: string;
+}
+
 // 6. tasks
 export interface TaskDeliverable {
   hook_options?: string[];
@@ -194,6 +204,7 @@ export interface TaskDeliverable {
   ad_recommendations?: string[];
   moderation_faq?: { question: string; reply: string }[];
   notes?: string;
+  comments?: TaskComment[];
 }
 
 export interface Task {
