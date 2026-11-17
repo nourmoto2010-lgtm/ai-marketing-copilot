@@ -6,14 +6,18 @@ import {
   Calendar,
   CheckCircle2,
   Clock,
+  Edit3,
   FileCheck,
+  HelpCircle,
+  MessageSquare,
   RotateCcw,
+  Save,
   Send,
   ShieldCheck,
   Sparkles,
   X,
 } from "lucide-react";
-import { Task } from "@/types/database";
+import { Task, TaskPriority } from "@/types/database";
 import { useAppStore } from "@/lib/store/app-context";
 import {
   cn,
@@ -35,15 +39,26 @@ export function SmartTaskDrawer({ task, onClose }: SmartTaskDrawerProps) {
     brandKits,
     users,
     roles,
+    currentUser,
     currentRole,
     reassignTask,
+    updateTaskDetails,
     updateTaskDeliverable,
+    addTaskComment,
     submitTaskForReview,
     reviewTask,
   } = useAppStore();
 
+  const [isEditingTaskInfo, setIsEditingTaskInfo] = useState(false);
+  const [editTitle, setEditTitle] = useState("");
+  const [editBrief, setEditBrief] = useState("");
+  const [editPriority, setEditPriority] = useState<TaskPriority>("high");
+  const [editPublishDate, setEditPublishDate] = useState("");
+
   const [deliverableText, setDeliverableText] = useState("");
   const [designPromptEn, setDesignPromptEn] = useState("");
+  const [commentInput, setCommentInput] = useState("");
+  const [isQuestionFlag, setIsQuestionFlag] = useState(true);
   const [reviewRating, setReviewRating] = useState<number>(9.5);
   const [reviewNotes, setReviewNotes] = useState<string>(
     "ممتاز ومطابق لهوية العميل بالكامل، تم الاعتماد من أول مرة."
@@ -52,6 +67,10 @@ export function SmartTaskDrawer({ task, onClose }: SmartTaskDrawerProps) {
 
   React.useEffect(() => {
     if (task) {
+      setEditTitle(task.title);
+      setEditBrief(task.brief);
+      setEditPriority(task.priority);
+      setEditPublishDate(task.scheduled_publish_date || "");
       setDeliverableText(
         task.deliverable_content.script_or_caption ||
           (task.deliverable_content.ad_recommendations || []).join("\n") ||
@@ -72,6 +91,19 @@ export function SmartTaskDrawer({ task, onClose }: SmartTaskDrawerProps) {
     roles.find((r) => r.slug === effectiveRoleSlug) || roles[2];
   const statusMeta = TASK_STATUS_META[task.status];
   const priorityMeta = PRIORITY_META[task.priority];
+  const comments = task.deliverable_content.comments || [];
+
+  const handleSaveTaskInfo = async () => {
+    await updateTaskDetails(task.id, {
+      title: editTitle,
+      brief: editBrief,
+      priority: editPriority,
+      scheduled_publish_date: editPublishDate,
+    });
+    setIsEditingTaskInfo(false);
+    setSavedToast(true);
+    setTimeout(() => setSavedToast(false), 1500);
+  };
 
   const handleSaveDeliverable = () => {
     updateTaskDeliverable(task.id, {
@@ -94,12 +126,23 @@ export function SmartTaskDrawer({ task, onClose }: SmartTaskDrawerProps) {
     setTimeout(() => setSavedToast(false), 1500);
   };
 
+  const handleSendComment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!commentInput.trim()) return;
+    await addTaskComment({
+      taskId: task.id,
+      message: commentInput,
+      isQuestion: isQuestionFlag,
+    });
+    setCommentInput("");
+  };
+
   return (
     <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex justify-end">
       <div className="bg-white w-full max-w-4xl h-full overflow-y-auto shadow-2xl border-r border-slate-200 flex flex-col justify-between">
         {/* Drawer Sticky Header */}
         <div className="p-6 border-b border-slate-200 bg-white sticky top-0 z-20 flex items-start justify-between gap-4">
-          <div className="space-y-1.5">
+          <div className="space-y-1.5 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <span className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-800 text-xs font-bold flex items-center gap-1.5">
                 <span>{client.logo_url}</span>
@@ -126,9 +169,23 @@ export function SmartTaskDrawer({ task, onClose }: SmartTaskDrawerProps) {
               </span>
             </div>
 
-            <h2 className="text-xl font-extrabold text-slate-900">
-              {task.title}
-            </h2>
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-xl font-extrabold text-slate-900">
+                {task.title}
+              </h2>
+              <button
+                type="button"
+                onClick={() => setIsEditingTaskInfo(!isEditingTaskInfo)}
+                className="px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold flex items-center gap-1.5 shrink-0"
+              >
+                <Edit3 className="w-3.5 h-3.5" />
+                <span>
+                  {isEditingTaskInfo
+                    ? "إغلاق التعديل"
+                    : "تعديل البريف والمطلوب"}
+                </span>
+              </button>
+            </div>
           </div>
 
           <button
@@ -151,20 +208,18 @@ export function SmartTaskDrawer({ task, onClose }: SmartTaskDrawerProps) {
               />
               <div className="min-w-0 flex-1">
                 <p className="text-[11px] text-slate-500">
-                  الموظف المسند إليه التاسك (يحدد أدوات الـ Copilot):
+                  الموظف المسند إليه التاسك:
                 </p>
                 <select
                   value={assignee.id}
                   onChange={(e) => reassignTask(task.id, e.target.value)}
                   className="mt-0.5 w-full bg-white text-slate-900 text-xs font-extrabold px-2.5 py-1.5 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
                 >
-                  {users
-                    .filter((u) => u.role_slug !== "ceo")
-                    .map((u) => (
-                      <option key={u.id} value={u.id}>
-                        {u.full_name} — {ROLE_LABELS[u.role_slug]?.ar}
-                      </option>
-                    ))}
+                  {users.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.full_name} — {u.job_title_ar}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>
@@ -203,32 +258,208 @@ export function SmartTaskDrawer({ task, onClose }: SmartTaskDrawerProps) {
                     {task.revision_count}
                   </span>
                 </p>
-                <p className="text-[10px] text-slate-500">
-                  {task.revision_count === 0
-                    ? "مؤهل لنقاط First-Time Approval الكاملة"
-                    : "تم طلب تعديل سابق"}
-                </p>
               </div>
             </div>
           </div>
 
-          {/* Task Brief Section */}
-          <div className="p-4 rounded-2xl bg-white border border-slate-200 space-y-1.5">
-            <h3 className="text-xs font-extrabold text-slate-500 uppercase">
-              بريف المهمة والتوجيه التنفيذي (Task Creative Brief)
-            </h3>
-            <p className="text-sm text-slate-800 leading-relaxed">
-              {task.brief}
-            </p>
+          {/* Editable Task Brief & Requirements Box */}
+          <div className="p-4 rounded-2xl bg-white border border-slate-200 space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-extrabold text-slate-500 uppercase">
+                بريف المهمة والمطلوب تنفيذه (Task Brief & Requirements)
+              </h3>
+              {savedToast && (
+                <span className="text-xs font-bold text-emerald-600">
+                  ✓ تم حفظ التعديلات بنجاح
+                </span>
+              )}
+            </div>
+
+            {isEditingTaskInfo ? (
+              <div className="space-y-3 bg-slate-50 p-4 rounded-xl border border-indigo-200">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    عنوان المهمة:
+                  </label>
+                  <input
+                    type="text"
+                    value={editTitle}
+                    onChange={(e) => setEditTitle(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    البريف والمطلوب بالتفصيل:
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={editBrief}
+                    onChange={(e) => setEditBrief(e.target.value)}
+                    className="w-full p-3 rounded-xl border border-slate-300 text-xs bg-white leading-relaxed"
+                  />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      الأولوية:
+                    </label>
+                    <select
+                      value={editPriority}
+                      onChange={(e) =>
+                        setEditPriority(e.target.value as TaskPriority)
+                      }
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold bg-white"
+                    >
+                      <option value="urgent">عاجل جداً (Urgent)</option>
+                      <option value="high">مرتفعة (High)</option>
+                      <option value="medium">متوسطة (Medium)</option>
+                      <option value="low">عادية (Low)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      تاريخ النشر المجدول:
+                    </label>
+                    <input
+                      type="date"
+                      value={editPublishDate}
+                      onChange={(e) => setEditPublishDate(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-en bg-white"
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsEditingTaskInfo(false)}
+                    className="px-4 py-1.5 rounded-xl text-xs font-bold text-slate-600"
+                  >
+                    إلغاء
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveTaskInfo}
+                    className="px-5 py-1.5 rounded-xl bg-indigo-600 text-white text-xs font-bold flex items-center gap-1.5"
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                    <span>حفظ تعديلات المهمة</span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-slate-800 leading-relaxed">
+                {task.brief}
+              </p>
+            )}
+
             {task.deliverable_content.notes && (
               <div className="mt-3 p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-start gap-2">
                 <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                 <div>
-                  <strong>ملاحظات المراجع (Account Manager / Director):</strong>{" "}
+                  <strong>ملاحظات المراجع (Nour Saleh / Shrouk):</strong>{" "}
                   {task.deliverable_content.notes}
                 </div>
               </div>
             )}
+          </div>
+
+          {/* Team Project Q&A & Discussion Thread */}
+          <div className="p-5 rounded-2xl bg-slate-50 border-2 border-blue-200/80 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center">
+                  <MessageSquare className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-extrabold text-slate-900">
+                    نقاش المهمة وأسئلة الفريق (Team Q&A & Project Thread)
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    يمكن لـ (Salma / Mohamed / Shrouk / Nour Saleh) طرح أي سؤال أو استفسار حول البروجيكت هنا والرد عليه مباشرة.
+                  </p>
+                </div>
+              </div>
+              <span className="px-2.5 py-1 rounded-full bg-blue-100 text-blue-800 text-xs font-bold">
+                {comments.length} رسائل
+              </span>
+            </div>
+
+            {/* Messages List */}
+            <div className="space-y-2.5 max-h-60 overflow-y-auto pr-1">
+              {comments.length === 0 ? (
+                <div className="p-4 rounded-xl bg-white border border-slate-200 text-xs text-slate-500 text-center">
+                  لا توجد أسئلة أو تعليقات بعد على هذه المهمة. اكتب سؤالك أو توجيهك بالأسفل ليظهر للفريق فوراً.
+                </div>
+              ) : (
+                comments.map((cmt) => {
+                  const isManagerReply =
+                    cmt.author_id === "user-ceo" || cmt.author_id === "user-am";
+                  return (
+                    <div
+                      key={cmt.id}
+                      className={cn(
+                        "p-3.5 rounded-xl border text-xs space-y-1",
+                        isManagerReply
+                          ? "bg-indigo-50/70 border-indigo-200"
+                          : "bg-white border-slate-200"
+                      )}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className="font-extrabold text-slate-900">
+                            {cmt.author_name}
+                          </span>
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-200/80 text-slate-700 font-semibold">
+                            {cmt.author_role}
+                          </span>
+                          {cmt.is_question && (
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-bold flex items-center gap-1">
+                              <HelpCircle className="w-3 h-3" /> سؤال للفريق / الإدارة
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[10px] font-en text-slate-400">
+                          {cmt.created_at.slice(11, 16)}
+                        </span>
+                      </div>
+                      <p className="text-slate-800 leading-relaxed pt-1">
+                        {cmt.message}
+                      </p>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Add Question or Reply Input */}
+            <form onSubmit={handleSendComment} className="space-y-2">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={commentInput}
+                  onChange={(e) => setCommentInput(e.target.value)}
+                  placeholder={`اكتب سؤالك أو ردك باسم (${currentUser.full_name})...`}
+                  className="flex-1 px-3.5 py-2.5 rounded-xl bg-white border border-slate-300 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center gap-1.5 shrink-0"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  <span>إرسال في النقاش</span>
+                </button>
+              </div>
+              <label className="inline-flex items-center gap-2 text-[11px] font-bold text-slate-600 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={isQuestionFlag}
+                  onChange={(e) => setIsQuestionFlag(e.target.checked)}
+                  className="rounded accent-amber-600"
+                />
+                <span>تمييز كـ &quot;سؤال يحتاج رد في البروجيكت&quot;</span>
+              </label>
+            </form>
           </div>
 
           {/* Embedded Role-Specific AI Copilot */}
@@ -248,28 +479,7 @@ export function SmartTaskDrawer({ task, onClose }: SmartTaskDrawerProps) {
                 <FileCheck className="w-4 h-4 text-blue-600" />
                 <span>مخرجات وتسليم المهمة (Task Deliverable Workspace)</span>
               </h3>
-              {savedToast && (
-                <span className="text-xs font-bold text-emerald-600">
-                  ✓ تم حفظ التسليم بنجاح
-                </span>
-              )}
             </div>
-
-            {task.deliverable_content.hook_options &&
-              task.deliverable_content.hook_options.length > 0 && (
-                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5">
-                  <p className="text-xs font-bold text-slate-700">
-                    الهوكات المقترحة (Scroll-Stopping Hooks):
-                  </p>
-                  <ul className="text-xs text-slate-700 space-y-1">
-                    {task.deliverable_content.hook_options.map((h, i) => (
-                      <li key={i} className="font-medium">
-                        {h}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
 
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1.5">
@@ -279,7 +489,7 @@ export function SmartTaskDrawer({ task, onClose }: SmartTaskDrawerProps) {
                 rows={5}
                 value={deliverableText}
                 onChange={(e) => setDeliverableText(e.target.value)}
-                placeholder="اكتب مخرجات المهمة هنا أو اضغط 'اعتماد وحفظ' من مخرجات المساعد الذكي أعلاه..."
+                placeholder="اكتب مخرجات المهمة هنا أو اضغط 'إدراج في تسليم المهمة' من المساعد الذكي أعلاه..."
                 className="w-full p-3.5 rounded-xl border border-slate-300 text-xs leading-relaxed focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
@@ -349,7 +559,7 @@ export function SmartTaskDrawer({ task, onClose }: SmartTaskDrawerProps) {
                   <h3 className="text-sm font-extrabold flex items-center gap-2">
                     <ShieldCheck className="w-4 h-4 text-emerald-400" />
                     <span>
-                      قرار مراجعة واعتماد المهمة (Account Manager / Director Review)
+                      قرار مراجعة واعتماد المهمة (Nour Saleh / Shrouk Review)
                     </span>
                   </h3>
                   <p className="text-xs text-slate-400">
