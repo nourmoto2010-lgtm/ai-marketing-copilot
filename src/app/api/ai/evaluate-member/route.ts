@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { generateMemberEvaluationAI } from "@/lib/ai/gemini";
 import { calculateMemberKpiScore } from "@/lib/kpi-calculator";
 
+export const dynamic = "force-dynamic";
+
 export async function POST(request: Request) {
   try {
     const body = await request.json();
