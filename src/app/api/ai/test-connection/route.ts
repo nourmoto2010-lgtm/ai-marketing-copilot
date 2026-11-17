@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { callGeminiRestApi } from "@/lib/ai/gemini";
 
+export const dynamic = "force-dynamic";
+
 export async function POST(request: Request) {
   try {
     const body = await request.json();
@@ -22,7 +24,7 @@ export async function POST(request: Request) {
         message:
           "تم الاتصال المباشر بنجاح بمحرك Gemini REST API (gemini-flash-latest) وحفظ المفتاح في system_settings!",
       });
-    } catch (liveErr: any) {
+    } catch {
       return NextResponse.json({
         ok: true,
         mode: "key_saved_supabase",
