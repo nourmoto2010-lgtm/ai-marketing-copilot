@@ -2,8 +2,7 @@ import type { Metadata } from "next";
 import { Cairo, Inter } from "next/font/google";
 import "./globals.css";
 import { AppProvider } from "@/lib/store/app-context";
-import { AppSidebar } from "@/components/layout/app-sidebar";
-import { TopNavbar } from "@/components/layout/top-navbar";
+import { AuthShell } from "@/components/layout/auth-shell";
 
 const cairo = Cairo({
   subsets: ["arabic", "latin"],
@@ -32,15 +31,7 @@ export default function RootLayout({
     <html lang="ar" dir="rtl" className={`${cairo.variable} ${inter.variable}`}>
       <body className="antialiased bg-[#F8FAFC] text-[#0F172A] min-h-screen">
         <AppProvider>
-          <div className="flex min-h-screen">
-            <AppSidebar />
-            <div className="flex-1 flex flex-col min-w-0">
-              <TopNavbar />
-              <main className="flex-1 p-6 max-w-[1600px] w-full mx-auto">
-                {children}
-              </main>
-            </div>
-          </div>
+          <AuthShell>{children}</AuthShell>
         </AppProvider>
       </body>
     </html>
