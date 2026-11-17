@@ -1,9 +1,13 @@
 "use client";
 
 import React, { useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Check,
   KeyRound,
+  LogIn,
+  LogOut,
   RotateCcw,
   Shield,
   Sparkles,
@@ -26,8 +30,11 @@ export function TopNavbar() {
     setGeminiApiKey,
     latestKpiToast,
     dismissKpiToast,
+    isAuthenticated,
+    logoutUser,
     resetToSeedData,
   } = useAppStore();
+  const router = useRouter();
 
   const [showKeyModal, setShowKeyModal] = useState(false);
   const [tempKey, setTempKey] = useState(geminiApiKey);
@@ -132,6 +139,29 @@ export function TopNavbar() {
           >
             <RotateCcw className="w-4 h-4" />
           </button>
+
+          {/* Login / Logout Auth Button */}
+          {isAuthenticated ? (
+            <button
+              type="button"
+              onClick={async () => {
+                await logoutUser();
+                router.push("/login");
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border border-slate-200 bg-slate-50 hover:bg-red-50 hover:text-red-700 hover:border-red-200 text-slate-700 transition"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span>تبديل الحساب / خروج</span>
+            </button>
+          ) : (
+            <Link
+              href="/login"
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold bg-slate-900 text-white hover:bg-indigo-600 transition"
+            >
+              <LogIn className="w-3.5 h-3.5" />
+              <span>تسجيل الدخول</span>
+            </Link>
+          )}
         </div>
       </header>
 
