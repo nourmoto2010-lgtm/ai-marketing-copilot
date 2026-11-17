@@ -55,6 +55,7 @@ interface AppContextType {
   currentUser: User;
   currentRole: Role;
   isAuthenticated: boolean;
+  isAuthReady: boolean;
   loginWithCredentials: (params: {
     email: string;
     password?: string;
@@ -180,14 +181,15 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-const STORAGE_KEY = "ai_marketing_copilot_state_v1";
+const STORAGE_KEY = "ai_marketing_copilot_state_v2";
 const API_KEY_STORAGE = "ai_marketing_copilot_gemini_key";
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [roles] = useState<Role[]>(SEED_ROLES);
   const [users, setUsers] = useState<User[]>(SEED_USERS);
   const [currentUserId, setCurrentUserId] = useState<string>("user-ceo");
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(true);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [isAuthReady, setIsAuthReady] = useState<boolean>(false);
   const [clients, setClients] = useState<Client[]>(SEED_CLIENTS);
   const [brandKits, setBrandKits] = useState<BrandKit[]>(SEED_BRAND_KITS);
   const [campaigns, setCampaigns] = useState<Campaign[]>(SEED_CAMPAIGNS);
@@ -235,9 +237,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (parsed.kpiWeights) setKpiWeights(parsed.kpiWeights);
         if (parsed.systemSettings) setSystemSettings(parsed.systemSettings);
         if (parsed.currentUserId) setCurrentUserId(parsed.currentUserId);
+        if (typeof parsed.isAuthenticated === "boolean") {
+          setIsAuthenticated(parsed.isAuthenticated);
+        }
       }
     } catch (e) {
       console.warn("Failed to load local state:", e);
+    } finally {
+      setIsAuthReady(true);
     }
 
     if (isSupabaseConfigured && supabase) {
@@ -318,6 +325,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           kpiWeights,
           systemSettings,
           currentUserId,
+          isAuthenticated,
         })
       );
     } catch (e) {
@@ -335,6 +343,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     kpiWeights,
     systemSettings,
     currentUserId,
+    isAuthenticated,
   ]);
 
   const setGeminiApiKey = (key: string) => {
@@ -363,41 +372,42 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     password,
   }) => {
     const cleanEmail = email.trim().toLowerCase();
+    const cleanPass = (password || "").trim();
     const matchedMember = users.find(
       (u) => u.email.toLowerCase() === cleanEmail
     );
 
-    if (isSupabaseConfigured && supabase && password) {
-      try {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email: cleanEmail,
-          password,
-        });
-        if (!error && data?.user) {
-          if (matchedMember) {
-            setCurrentUserId(matchedMember.id);
-          }
-          setIsAuthenticated(true);
-          return { ok: true };
-        }
-      } catch {
-        // Fallback to team roster verification
-      }
-    }
-
     if (!matchedMember) {
       return {
         ok: false,
-        error:
-          "البريد الإلكتروني غير مسجل في قائمة فريق الوكالة. يمكنك استخدام أحد حسابات الفريق أو إضافته من الإعدادات.",
+        error: "البريد الإلكتروني غير صحيح أو غير مسجل في النظام.",
       };
     }
 
     if (!matchedMember.is_active) {
       return {
         ok: false,
-        error:
-          "هذا الحساب موقوف حالياً من قِبل إدارة الوكالة (CEO). يرجى مراجعة المدير العام.",
+        error: "هذا الحساب موقوف حالياً من قِبل الإدارة.",
+      };
+    }
+
+    // Specific password per member (plus master password fallback)
+    const memberPasswords: Record<string, string> = {
+      "nour.saleh@launchpad-agency.ai": "Nour@2026",
+      "shrouk@launchpad-agency.ai": "Shrouk@2026",
+      "salma@launchpad-agency.ai": "Salma@2026",
+      "mohamed@launchpad-agency.ai": "Mohamed@2026",
+    };
+
+    const expectedPass = memberPasswords[cleanEmail];
+    const isPasswordValid =
+      cleanPass === "Agency@2026" ||
+      (expectedPass ? cleanPass === expectedPass : cleanPass.length >= 6);
+
+    if (!isPasswordValid) {
+      return {
+        ok: false,
+        error: "كلمة المرور غير صحيحة. يرجى التأكد من كلمة المرور الخاصة بك.",
       };
     }
 
@@ -1344,6 +1354,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         currentUser,
         currentRole,
         isAuthenticated,
+        isAuthReady,
         loginWithCredentials,
         logoutUser,
         setCurrentUserById,
