@@ -79,6 +79,7 @@ export default function AdminSettingsPage() {
     saveSystemSettings,
     upsertTeamMember,
     toggleTeamMemberStatus,
+    deleteTeamMember,
     addNewClientWithBrandKit,
     setCurrentUserById,
   } = useAppStore();
@@ -840,14 +841,25 @@ export default function AdminSettingsPage() {
                       </td>
 
                       <td className="p-3.5">
-                        <button
-                          type="button"
-                          onClick={() => openEditMemberModal(member)}
-                          className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-indigo-600 hover:text-white text-slate-700 font-bold text-xs transition inline-flex items-center gap-1"
-                        >
-                          <Edit3 className="w-3.5 h-3.5" />
-                          <span>تعديل</span>
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => openEditMemberModal(member)}
+                            className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-indigo-600 hover:text-white text-slate-700 font-bold text-xs transition inline-flex items-center gap-1"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                            <span>تعديل</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => deleteTeamMember(member.id)}
+                            className="px-2.5 py-1.5 rounded-lg bg-red-50 hover:bg-red-600 hover:text-white text-red-700 font-bold text-xs transition inline-flex items-center gap-1"
+                            title="حذف الموظف"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>حذف</span>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
