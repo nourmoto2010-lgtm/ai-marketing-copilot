@@ -6,10 +6,12 @@ import Link from "next/link";
 import {
   ArrowRight,
   Calendar,
+  Check,
   CheckCircle2,
   Copy,
-  Check,
+  Edit3,
   Palette,
+  Save,
   ShieldAlert,
   Sparkles,
   Target,
@@ -27,20 +29,52 @@ import { SmartTaskDrawer } from "@/components/workspace/smart-task-drawer";
 export default function ClientDetailVaultPage() {
   const params = useParams();
   const clientId = String(params?.id || "client-sweets");
-  const { clients, brandKits, campaigns, tasks, users, updateBrandKit } =
-    useAppStore();
+  const {
+    clients,
+    brandKits,
+    tasks,
+    users,
+    updateClientAndBrandKit,
+  } = useAppStore();
 
   const client =
     clients.find((c) => c.id === clientId) || clients[0];
   const brandKit =
     brandKits.find((b) => b.client_id === client.id) || brandKits[0];
-  const clientCampaigns = campaigns.filter((c) => c.client_id === client.id);
   const clientTasks = tasks.filter((t) => t.client_id === client.id);
 
   const [activeTab, setActiveTab] = useState<"vault" | "calendar">("vault");
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [copiedHex, setCopiedHex] = useState<string | null>(null);
+
+  // Full editable state for Client Info, Package, and Brand Kit
+  const [editClientName, setEditClientName] = useState(client.name);
+  const [editSectorLabel, setEditSectorLabel] = useState(
+    client.sector_label_ar
+  );
+  const [editPostsTarget, setEditPostsTarget] = useState(
+    client.monthly_package.posts_target
+  );
+  const [editReelsTarget, setEditReelsTarget] = useState(
+    client.monthly_package.reels_target
+  );
+  const [editDesignsTarget, setEditDesignsTarget] = useState(
+    client.monthly_package.designs_target
+  );
+  const [editRetainer, setEditRetainer] = useState(
+    client.monthly_package.monthly_retainer_usd
+  );
+
   const [editingTone, setEditingTone] = useState(brandKit.tone_of_voice);
+  const [editingTarget, setEditingTarget] = useState(brandKit.target_audience);
+  const [editingUsp, setEditingUsp] = useState(brandKit.usp_and_key_messages);
+  const [editingDos, setEditingDos] = useState(
+    brandKit.dos_and_donts.dos.join("\n")
+  );
+  const [editingDonts, setEditingDonts] = useState(
+    brandKit.dos_and_donts.donts.join("\n")
+  );
+  const [editingColors, setEditingColors] = useState(brandKit.colors);
   const [savedNotice, setSavedNotice] = useState(false);
 
   const selectedTask =
@@ -52,10 +86,36 @@ export default function ClientDetailVaultPage() {
     setTimeout(() => setCopiedHex(null), 1200);
   };
 
-  const handleSaveBrandVoice = () => {
-    updateBrandKit(client.id, { tone_of_voice: editingTone });
+  const handleSaveAllClientData = async () => {
+    await updateClientAndBrandKit({
+      clientId: client.id,
+      name: editClientName,
+      sector_label_ar: editSectorLabel,
+      monthly_package: {
+        posts_target: Number(editPostsTarget),
+        reels_target: Number(editReelsTarget),
+        designs_target: Number(editDesignsTarget),
+        monthly_retainer_usd: Number(editRetainer),
+      },
+      brandKit: {
+        colors: editingColors,
+        tone_of_voice: editingTone,
+        target_audience: editingTarget,
+        usp_and_key_messages: editingUsp,
+        dos_and_donts: {
+          dos: editingDos
+            .split("\n")
+            .map((s) => s.trim())
+            .filter(Boolean),
+          donts: editingDonts
+            .split("\n")
+            .map((s) => s.trim())
+            .filter(Boolean),
+        },
+      },
+    });
     setSavedNotice(true);
-    setTimeout(() => setSavedNotice(false), 1500);
+    setTimeout(() => setSavedNotice(false), 2000);
   };
 
   return (
@@ -105,7 +165,7 @@ export default function ClientDetailVaultPage() {
               )}
             >
               <Palette className="w-4 h-4" />
-              <span>خزنة الهوية والـ AI Memory (Brand Kit)</span>
+              <span>تعديل بيانات العميل والـ Brand Kit</span>
             </button>
             <button
               type="button"
@@ -118,41 +178,138 @@ export default function ClientDetailVaultPage() {
               )}
             >
               <Calendar className="w-4 h-4" />
-              <span>جدول المحتوى التفاعلي (Content Calendar)</span>
+              <span>جدول المحتوى والمهام ({clientTasks.length})</span>
             </button>
           </div>
         </div>
       </div>
 
-      {/* TAB 1: Brand Kit & AI Memory Vault */}
+      {/* TAB 1: Editable Client Data & Brand Kit Vault */}
       {activeTab === "vault" && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Colors & Fonts Column */}
+          {/* Left Column: Basic Info, Package Targets, and Colors */}
           <div className="space-y-6">
+            {/* Client Info & Package Targets */}
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-card-soft space-y-4">
+              <h2 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                <Edit3 className="w-4 h-4 text-indigo-600" />
+                <span>بيانات العميل ومطلوبات الباقة الشهرية</span>
+              </h2>
+
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    اسم العميل:
+                  </label>
+                  <input
+                    type="text"
+                    value={editClientName}
+                    onChange={(e) => setEditClientName(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    القطاع:
+                  </label>
+                  <input
+                    type="text"
+                    value={editSectorLabel}
+                    onChange={(e) => setEditSectorLabel(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2.5 pt-1">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                      عدد البوستات المطلوبة:
+                    </label>
+                    <input
+                      type="number"
+                      value={editPostsTarget}
+                      onChange={(e) =>
+                        setEditPostsTarget(Number(e.target.value))
+                      }
+                      className="w-full px-3 py-1.5 rounded-xl border border-slate-300 text-xs font-en font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                      عدد الريلز المطلوبة:
+                    </label>
+                    <input
+                      type="number"
+                      value={editReelsTarget}
+                      onChange={(e) =>
+                        setEditReelsTarget(Number(e.target.value))
+                      }
+                      className="w-full px-3 py-1.5 rounded-xl border border-slate-300 text-xs font-en font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                      عدد التصميمات:
+                    </label>
+                    <input
+                      type="number"
+                      value={editDesignsTarget}
+                      onChange={(e) =>
+                        setEditDesignsTarget(Number(e.target.value))
+                      }
+                      className="w-full px-3 py-1.5 rounded-xl border border-slate-300 text-xs font-en font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                      قيمة التعاقد ($):
+                    </label>
+                    <input
+                      type="number"
+                      value={editRetainer}
+                      onChange={(e) => setEditRetainer(Number(e.target.value))}
+                      className="w-full px-3 py-1.5 rounded-xl border border-slate-300 text-xs font-en font-bold"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Editable Colors */}
             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-card-soft space-y-4">
               <h2 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
                 <Palette className="w-5 h-5 text-indigo-600" />
-                <span>الألوان المعتمدة (Brand Hex Codes)</span>
+                <span>تعديل ألوان الهوية (Hex Color Pickers)</span>
               </h2>
-              <p className="text-xs text-slate-500">
-                يتم حقن هذه الأكواد تلقائياً في برومبتات مصمم الجرافيك ومونتير الفيديو.
-              </p>
 
               <div className="space-y-3">
-                {brandKit.colors.map((c) => (
+                {editingColors.map((c, idx) => (
                   <div
-                    key={c.hex}
-                    className="p-3 rounded-xl border border-slate-200 flex items-center justify-between gap-3 hover:border-indigo-300 transition"
+                    key={idx}
+                    className="p-3 rounded-xl border border-slate-200 flex items-center justify-between gap-3"
                   >
-                    <div className="flex items-center gap-3">
-                      <div
-                        className="w-10 h-10 rounded-xl border border-slate-200 shadow-inner shrink-0"
-                        style={{ backgroundColor: c.hex }}
+                    <div className="flex items-center gap-3 flex-1">
+                      <input
+                        type="color"
+                        value={c.hex}
+                        onChange={(e) => {
+                          const next = [...editingColors];
+                          next[idx] = { ...next[idx], hex: e.target.value };
+                          setEditingColors(next);
+                        }}
+                        className="w-10 h-10 rounded-xl border border-slate-200 cursor-pointer shrink-0"
                       />
-                      <div>
-                        <p className="text-xs font-bold text-slate-900">
-                          {c.name}
-                        </p>
+                      <div className="flex-1">
+                        <input
+                          type="text"
+                          value={c.name}
+                          onChange={(e) => {
+                            const next = [...editingColors];
+                            next[idx] = { ...next[idx], name: e.target.value };
+                            setEditingColors(next);
+                          }}
+                          className="w-full text-xs font-bold text-slate-900 border-b border-slate-100 focus:outline-none"
+                        />
                         <p className="text-[11px] text-slate-500">{c.usage}</p>
                       </div>
                     </div>
@@ -173,130 +330,97 @@ export default function ClientDetailVaultPage() {
                 ))}
               </div>
             </div>
-
-            {/* Typography */}
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-card-soft space-y-3">
-              <h2 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
-                <Type className="w-5 h-5 text-blue-600" />
-                <span>الخطوط المعتمدة (Typography)</span>
-              </h2>
-              <div className="grid grid-cols-3 gap-2.5 text-center">
-                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-                  <p className="text-[10px] text-slate-500">العناوين</p>
-                  <p className="text-xs font-bold font-en text-slate-900 mt-1">
-                    {brandKit.fonts.heading}
-                  </p>
-                </div>
-                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-                  <p className="text-[10px] text-slate-500">النصوص</p>
-                  <p className="text-xs font-bold font-en text-slate-900 mt-1">
-                    {brandKit.fonts.body}
-                  </p>
-                </div>
-                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-                  <p className="text-[10px] text-slate-500">الإنجليزي</p>
-                  <p className="text-xs font-bold font-en text-slate-900 mt-1">
-                    {brandKit.fonts.english}
-                  </p>
-                </div>
-              </div>
-            </div>
           </div>
 
-          {/* Tone of Voice, Target Audience, Do's & Don'ts */}
+          {/* Right 2 Columns: Tone of Voice, Target Audience, USP, Do's & Don'ts */}
           <div className="lg:col-span-2 space-y-6">
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-card-soft space-y-4">
-              <div className="flex items-center justify-between">
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-card-soft space-y-5">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4">
                 <h2 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
                   <Sparkles className="w-5 h-5 text-indigo-600" />
                   <span>
-                    نبرة الصوت والذاكرة الذكية للعميل (Tone of Voice & AI Memory)
+                    تعديل الهوية والرسائل التسويقية والمحظورات (تُحفظ فوراً في Supabase)
                   </span>
                 </h2>
-                {savedNotice && (
-                  <span className="text-xs font-bold text-emerald-600">
-                    ✓ تم تحديث ذاكرة الـ AI للعميل
-                  </span>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                  نبرة الصوت (تُستخدم تلقائياً عند كتابة السكريبتات والكابشنز والردود):
-                </label>
-                <textarea
-                  rows={3}
-                  value={editingTone}
-                  onChange={(e) => setEditingTone(e.target.value)}
-                  className="w-full p-3.5 rounded-xl border border-slate-300 text-xs leading-relaxed"
-                />
-                <div className="flex justify-end mt-2">
+                <div className="flex items-center gap-3">
+                  {savedNotice && (
+                    <span className="text-xs font-bold text-emerald-600">
+                      ✓ تم حفظ جميع تعديلات العميل!
+                    </span>
+                  )}
                   <button
                     type="button"
-                    onClick={handleSaveBrandVoice}
-                    className="px-4 py-1.5 rounded-xl bg-indigo-600 text-white text-xs font-bold"
+                    onClick={handleSaveAllClientData}
+                    className="px-5 py-2.5 rounded-xl bg-ai-gradient text-white text-xs font-bold shadow-ai-glow flex items-center gap-2"
                   >
-                    حفظ تعديل نبرة الصوت
+                    <Save className="w-4 h-4" />
+                    <span>حفظ جميع تعديلات العميل والباقة</span>
                   </button>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5">
-                  <p className="text-xs font-extrabold text-slate-800 flex items-center gap-1.5">
-                    <Target className="w-4 h-4 text-blue-600" />
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  نبرة الصوت (Tone of Voice):
+                </label>
+                <textarea
+                  rows={2}
+                  value={editingTone}
+                  onChange={(e) => setEditingTone(e.target.value)}
+                  className="w-full p-3 rounded-xl border border-slate-300 text-xs leading-relaxed"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
                     الجمهور المستهدف (Target Audience):
-                  </p>
-                  <p className="text-xs text-slate-600 leading-relaxed">
-                    {brandKit.target_audience}
-                  </p>
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={editingTarget}
+                    onChange={(e) => setEditingTarget(e.target.value)}
+                    className="w-full p-3 rounded-xl border border-slate-300 text-xs leading-relaxed"
+                  />
                 </div>
 
-                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5">
-                  <p className="text-xs font-extrabold text-slate-800 flex items-center gap-1.5">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                    الميزة التنافسية (USP & Key Messages):
-                  </p>
-                  <p className="text-xs text-slate-600 leading-relaxed">
-                    {brandKit.usp_and_key_messages}
-                  </p>
-                </div>
-              </div>
-
-              {/* Do's and Don'ts */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-                <div className="p-4 rounded-xl bg-emerald-50/70 border border-emerald-200 space-y-2">
-                  <p className="text-xs font-extrabold text-emerald-900">
-                    ✅ المسموحات والتوجيهات الإلزامية (DO&apos;s):
-                  </p>
-                  <ul className="space-y-1.5 text-xs text-emerald-900 list-disc pr-4">
-                    {brandKit.dos_and_donts.dos.map((d, i) => (
-                      <li key={i}>{d}</li>
-                    ))}
-                  </ul>
-                </div>
-
-                <div className="p-4 rounded-xl bg-red-50/70 border border-red-200 space-y-2">
-                  <p className="text-xs font-extrabold text-red-900 flex items-center gap-1.5">
-                    <ShieldAlert className="w-4 h-4 text-red-600" />
-                    المحظورات الصارمة (DON&apos;Ts - يمنع الـ AI من استخدامها):
-                  </p>
-                  <ul className="space-y-1.5 text-xs text-red-900 list-disc pr-4">
-                    {brandKit.dos_and_donts.donts.map((d, i) => (
-                      <li key={i}>{d}</li>
-                    ))}
-                  </ul>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    الميزة التنافسية والمطلوب إبرازه (USP & Key Messages):
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={editingUsp}
+                    onChange={(e) => setEditingUsp(e.target.value)}
+                    className="w-full p-3 rounded-xl border border-slate-300 text-xs leading-relaxed"
+                  />
                 </div>
               </div>
 
-              {/* AI Visual Prompt Style Prefix */}
-              <div className="p-4 rounded-xl bg-slate-900 text-slate-100 space-y-1.5">
-                <p className="text-xs font-bold text-indigo-300 font-en">
-                  AI Visual Style Prompt Prefix (Auto-injected for Graphic Designer):
-                </p>
-                <p className="text-xs font-en text-slate-300 leading-relaxed" dir="ltr">
-                  {brandKit.visual_style_prompt_prefix}
-                </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-emerald-800 mb-1.5">
+                    ✅ المسموحات والتوجيهات الإلزامية (DO&apos;s - سطر لكل عنصر):
+                  </label>
+                  <textarea
+                    rows={4}
+                    value={editingDos}
+                    onChange={(e) => setEditingDos(e.target.value)}
+                    className="w-full p-3 rounded-xl border border-emerald-200 bg-emerald-50/30 text-xs leading-relaxed"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-red-800 mb-1.5">
+                    🚫 المحظورات الصارمة (DON&apos;Ts - سطر لكل عنصر):
+                  </label>
+                  <textarea
+                    rows={4}
+                    value={editingDonts}
+                    onChange={(e) => setEditingDonts(e.target.value)}
+                    className="w-full p-3 rounded-xl border border-red-200 bg-red-50/30 text-xs leading-relaxed"
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -309,10 +433,10 @@ export default function ClientDetailVaultPage() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-lg font-extrabold text-slate-900">
-                جدول المحتوى التفاعلي لـ {client.name} (Content Calendar - نوفمبر 2026)
+                جدول المحتوى والمهام لـ {client.name}
               </h2>
               <p className="text-xs text-slate-500">
-                عرض زمني لجميع البوستات، الريلز، والحملات المجدولة مع حالتها الحالية. اضغط على أي عنصر لفتح درج المهمة والمساعد الذكي.
+                اضغط على أي مهمة لتعديل البريف، إضافة سؤال للفريق، أو تشغيل المساعد الذكي.
               </p>
             </div>
           </div>
@@ -321,10 +445,10 @@ export default function ClientDetailVaultPage() {
             <table className="w-full text-right border-collapse">
               <thead>
                 <tr className="border-b border-slate-200 text-xs font-extrabold text-slate-600 bg-slate-50">
-                  <th className="p-3.5 rounded-r-xl">تاريخ النشر المجدول</th>
+                  <th className="p-3.5 rounded-r-xl">تاريخ النشر</th>
                   <th className="p-3.5">عنوان المحتوى / المهمة</th>
                   <th className="p-3.5">نوع المحتوى والمنصة</th>
-                  <th className="p-3.5">المسؤول والدور</th>
+                  <th className="p-3.5">المسؤول</th>
                   <th className="p-3.5">الحالة (Status)</th>
                   <th className="p-3.5 rounded-l-xl">الإجراء</th>
                 </tr>
@@ -352,21 +476,9 @@ export default function ClientDetailVaultPage() {
                         </span>
                       </td>
                       <td className="p-3.5">
-                        <div className="flex items-center gap-2">
-                          {assignee && (
-                            <img
-                              src={assignee.avatar_url}
-                              alt={assignee.full_name}
-                              className="w-6 h-6 rounded-full object-cover"
-                            />
-                          )}
-                          <span className="font-semibold text-slate-800">
-                            {assignee?.full_name}
-                          </span>
-                          <span className="text-[10px] text-slate-500">
-                            ({ROLE_LABELS[task.role_slug]?.ar})
-                          </span>
-                        </div>
+                        <span className="font-bold text-slate-900">
+                          {assignee?.full_name}
+                        </span>
                       </td>
                       <td className="p-3.5">
                         <span
@@ -380,7 +492,7 @@ export default function ClientDetailVaultPage() {
                       </td>
                       <td className="p-3.5">
                         <span className="text-indigo-600 font-bold hover:underline">
-                          فتح في المساعد الذكي ←
+                          تعديل / نقاش / Copilot ←
                         </span>
                       </td>
                     </tr>
