@@ -1,0 +1,38 @@
+# Dependencies
+/node_modules
+/.pnp
+.pnp.js
+
+# Next.js build output
+/.next/
+/out/
+
+# Production build
+/build
+
+# Environment variables & Secrets (Protected)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env*.local
+
+# Debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Vercel / Deployment
+.vercel
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
+
+# Temporary local helper scripts & local preview
+seed-supabase-rest.ps1
+seed-tasks-rest.ps1
+test-gemini-rest.ps1
+start-preview.ps1
+preview-server.html
